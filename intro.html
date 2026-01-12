@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZDays Premier | Cybercrime Portal</title>
+  <style>
+    /* Global Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Courier New', monospace;
+    }
+
+    body {
+      background: #000;
+      color: #0f0;
+      overflow: hidden;
+    }
+
+    /* Matrix Background */
+    canvas#matrix {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Glitch Title */
+    .glitch {
+      font-size: clamp(2rem, 5vw, 4rem);
+      font-weight: bold;
+      text-align: center;
+      margin-top: 5vh;
+      position: relative;
+      color: #0f0;
+      text-transform: uppercase;
+      animation: glitch-skew 1s infinite linear alternate-reverse;
+    }
+    .glitch:before, .glitch:after {
+      content: attr(data-text);
+      position: absolute;
+      left: 0;
+    }
+    .glitch:before {
+      animation: glitch-anim 2s infinite linear alternate-reverse;
+      color: #f00;
+      z-index: -1;
+    }
+    .glitch:after {
+      animation: glitch-anim2 3s infinite linear alternate-reverse;
+      color: #00f;
+      z-index: -2;
+    }
+    @keyframes glitch-anim {
+      0% { clip: rect(10px, 9999px, 80px, 0); transform: skew(0.5deg); }
+      50% { clip: rect(85px, 9999px, 140px, 0); transform: skew(-0.5deg); }
+      100% { clip: rect(30px, 9999px, 100px, 0); transform: skew(0.5deg); }
+    }
+    @keyframes glitch-anim2 {
+      0% { clip: rect(60px, 9999px, 100px, 0); transform: skew(-0.5deg); }
+      50% { clip: rect(10px, 9999px, 60px, 0); transform: skew(0.5deg); }
+      100% { clip: rect(90px, 9999px, 130px, 0); transform: skew(-0.5deg); }
+    }
+    @keyframes glitch-skew {
+      0% { transform: skew(2deg); }
+      100% { transform: skew(-2deg); }
+    }
+
+    /* Navigation */
+    nav {
+      margin-top: 3vh;
+      text-align: center;
+    }
+    nav a {
+      display: inline-block;
+      margin: 5px;
+      padding: 0.5em 1em;
+      border: 1px solid #0f0;
+      color: #0f0;
+      text-decoration: none;
+      font-size: clamp(0.8rem, 2vw, 1rem);
+      transition: all 0.3s;
+    }
+    nav a:hover {
+      background: #0f0;
+      color: #000;
+      box-shadow: 0 0 10px #0f0;
+    }
+
+    /* Console Section */
+    .console {
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #0f0;
+      margin: 5vh auto;
+      padding: 1em;
+      width: 90%;
+      height: 40vh; /* Dynamic relative size */
+      overflow-y: auto;
+      color: #0f0;
+      font-size: clamp(0.7rem, 1.5vw, 1rem);
+      box-shadow: 0 0 20px #0f0;
+      border-radius: 5px;
+    }
+    .line {
+      white-space: pre;
+      margin: 5px 0;
+    }
+    .user-input {
+      color: #fff;
+    }
+
+    /* Small screen adjustments */
+    @media (max-width: 600px) {
+      .console {
+        height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="matrix"></canvas>
+
+  <h1 class="glitch" data-text="ZDays Premier">ZDays Premier</h1>
+
+  <nav>
+    <a href="main/dashboard/main.html">Dashboard</a>
+    <a href="https://zerodays-shops.vercel.app/">Zerodayshop</a>
+    <a href="main/tools/main.html">Tools</a>
+  </nav>
+
+  <div class="console" id="console">
+    <div class="line">[SYSTEM] Initializing cybercrime framework...</div>
+    <div class="line">[SYSTEM] Loading exploits...</div>
+    <div class="line">[SYSTEM] Breach database connected...</div>
+    <div class="line">[SYSTEM] Forum sync established...</div>
+    <div class="line">[SYSTEM] ZDays Premier ready.</div>
+  </div>
+
+  <script>
+    /* Matrix Background Animation */
+    const canvas = document.getElementById("matrix");
+    const ctx = canvas.getContext("2d");
+
+    function resizeCanvas() {
+      canvas.height = window.innerHeight;
+      canvas.width = window.innerWidth;
+    }
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    const letters = "01ZDAYSPREMIER<>#$%&";
+    const fontSize = 14;
+    let columns = canvas.width / fontSize;
+    let drops = [];
+
+    function resetDrops() {
+      columns = canvas.width / fontSize;
+      drops = [];
+      for (let x = 0; x < columns; x++) {
+        drops[x] = 1;
+      }
+    }
+    resetDrops();
+
+    function draw() {
+      ctx.fillStyle = "rgba(0,0,0,0.05)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#0f0";
+      ctx.font = fontSize + "px monospace";
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = letters.charAt(Math.floor(Math.random() * letters.length));
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+        }
+        drops[i]++;
+      }
+    }
+    setInterval(draw, 35);
+    window.addEventListener("resize", resetDrops);
+
+    /* Console Typing */
+    const consoleBox = document.getElementById("console");
+    const messages = [
+      "[USER] > no result (0)",
+      "[MARKET] no result (0)",
+      "[DATA] no result (0)",
+      "[FORUM] no result (0)",
+      "[TOOLS] no result (0)",
+      "[ALERT] no result (0)"
+    ];
+
+    let index = 0;
+    function addMessage() {
+      if (index < messages.length) {
+        const line = document.createElement("div");
+        line.className = "line user-input";
+        line.textContent = messages[index];
+        consoleBox.appendChild(line);
+        consoleBox.scrollTop = consoleBox.scrollHeight;
+        index++;
+        setTimeout(addMessage, 2500);
+      }
+    }
+    setTimeout(addMessage, 3000);
+  </script>
+</body>
+</html>

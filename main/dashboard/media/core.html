@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Ultra Frequency Audio Maker</title>
+<style>
+  /* Normal CSS (no :root variables) */
+  html,body { height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; }
+  body {
+    background: url('1f80e4c01998b6aa375e439e713c83d6.jpg') center/cover fixed no-repeat;
+    color: #eaeaea;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .panel {
+    background: rgba(8,8,12,0.78);
+    border-radius:12px;
+    padding:18px;
+    width:980px;
+    max-width:98%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px);
+  }
+  h1 { margin:0 0 8px 0; font-size:20px; letter-spacing:0.5px; }
+  p.sub { margin:0 0 14px 0; font-size:12px; color:#bfc7d1; }
+  .controls { display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:center; }
+  .row { display:flex; gap:8px; align-items:center; }
+  label { font-size:13px; width:110px; color:#cfd8e3; }
+  input[type="number"], input[type="range"], select { width:100%; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02); color:#fff; }
+  input[type="checkbox"] { transform: scale(1.1); margin-right:6px; }
+  .big { grid-column: span 2; display:flex; gap:8px; }
+  button { padding:10px 14px; border-radius:8px; border:0; cursor:pointer; font-weight:600; }
+  button.primary { background: linear-gradient(90deg,#00aaff,#0055ff); color:white; }
+  button.ghost { background:transparent; border:1px solid rgba(255,255,255,0.08); color:#e6eefc; }
+  canvas { width:100%; height:160px; background: rgba(0,0,0,0.18); border-radius:8px; display:block; }
+  .note { font-size:12px; color:#ffefc4; margin-top:8px; }
+  .small { font-size:12px; color:#b6c3d3; }
+  .footer { display:flex; justify-content:space-between; align-items:center; margin-top:12px; gap:12px; flex-wrap:wrap; }
+  .danger { color:#ffb4b4; font-weight:600; }
+  .left { display:flex; gap:8px; align-items:center; }
+</style>
+</head>
+<body>
+  <div class="panel" role="application" aria-label="Frequency audio maker">
+    <h1>Ultra Frequency Audio Maker</h1>
+    <p class="sub">Generate tones from 1 Hz up to 999,999,999,999 Hz. Note: browsers/hardware accurately reproduce up to about half the audio sample rate (~22 kHz). Values above that will alias. Use responsibly.</p>
+
+    <div class="controls">
+      <div class="row">
+        <label for="freq">Frequency (Hz)</label>
+        <input id="freq" type="number" min="1" max="999999999999" step="1" value="440" />
+      </div>
+
+      <div class="row">
+        <label for="wave">Waveform</label>
+        <select id="wave">
+          <option value="sine">Sine</option>
+          <option value="square">Square</option>
+          <option value="sawtooth">Sawtooth</option>
+          <option value="triangle">Triangle</option>
+          <option value="custom">Custom (harmonics)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="slider">Freq slider</label>
+        <input id="slider" type="range" min="1" max="50000" step="1" value="440" />
+      </div>
+
+      <div class="row">
+        <label for="volume">Volume</label>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.5" />
+      </div>
+
+      <div class="row">
+        <label for="duration">Duration (s)</label>
+        <input id="duration" type="number" min="0.1" max="600" step="0.1" value="3" />
+      </div>
+
+      <div class="row">
+        <label for="loop">Loop</label>
+        <input id="loop" type="checkbox" />
+      </div>
+
+      <div class="row">
+        <label for="sweepStart">Sweep start (Hz)</label>
+        <input id="sweepStart" type="number" min="1" max="999999999999" value="440" />
+      </div>
+
+      <div class="row">
+        <label for="sweepEnd">Sweep end (Hz)</label>
+        <input id="sweepEnd" type="number" min="1" max="999999999999" value="1000" />
+      </div>
+
+      <div class="big">
+        <button id="playBtn" class="primary">Play</button>
+        <button id="stopBtn" class="ghost">Stop</button>
+        <button id="sweepBtn" class="ghost">Play Sweep</button>
+        <button id="downloadBtn" class="ghost">Generate WAV & Download</button>
+      </div>
+
+      <div class="big">
+        <canvas id="waveCanvas" width="900" height="160" aria-label="Waveform visualization"></canvas>
+      </div>
+
+      <div class="big">
+        <canvas id="freqCanvas" width="900" height="160" aria-label="Frequency spectrum visualization"></canvas>
+      </div>
+
+      <div class="big small">
+        <div class="left">
+          <span class="small">AudioContext sample rate: <span id="sr">—</span> Hz</span>
+          <span class="small"> (Clamped max accurate freq ≈ <span id="nyquist">—</span> Hz)</span>
+        </div>
+        <div class="left">
+          <span class="danger">Warning:</span>
+          <span class="small">Very high frequencies may damage speakers or be inaudible. Keep volume moderate.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="small">Tip: Use 'Generate WAV' to export the sound. WAV is created at the context sample rate; extremely high frequencies will alias into audible range.</div>
+      <div class="small">Compatibility: Desktop Chrome/Firefox recommended.</div>
+    </div>
+  </div>
+
+<script>
+  // UI references
+  const freqInput = document.getElementById('freq');
+  const waveSelect = document.getElementById('wave');
+  const slider = document.getElementById('slider');
+  const volume = document.getElementById('volume');
+  const durationInput = document.getElementById('duration');
+  const loopCheck = document.getElementById('loop');
+  const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const sweepBtn = document.getElementById('sweepBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const sweepStart = document.getElementById('sweepStart');
+  const sweepEnd = document.getElementById('sweepEnd');
+  const srLabel = document.getElementById('sr');
+  const nyquistLabel = document.getElementById('nyquist');
+
+  const waveCanvas = document.getElementById('waveCanvas');
+  const freqCanvas = document.getElementById('freqCanvas');
+  const wctx = waveCanvas.getContext('2d');
+  const fctx = freqCanvas.getContext('2d');
+
+  // Audio setup
+  let audioCtx = null;
+  let osc = null;
+  let gain = null;
+  let analyser = null;
+  let animationId = null;
+  let playing = false;
+  let currentOscType = 'sine';
+
+  function ensureAudioContext() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      srLabel.textContent = audioCtx.sampleRate;
+      nyquistLabel.textContent = Math.floor(audioCtx.sampleRate / 2);
+    }
+  }
+
+  // sync slider (limited to 50k for convenience) and numeric freq input
+  slider.addEventListener('input', () => {
+    freqInput.value = slider.value;
+  });
+  freqInput.addEventListener('change', () => {
+    // keep slider in practical range (1..50000) for quick control;
+    // still allow numeric input to be outside this range as requested
+    const v = Number(freqInput.value) || 1;
+    if (v >= slider.min && v <= slider.max) slider.value = v;
+  });
+
+  // create oscillator graphically
+  function startTone({freq, type='sine', vol=0.5, loop=false, duration=null, sweep=null} = {}) {
+    ensureAudioContext();
+    stopTone();
+
+    // safety checks:
+    if (freq < 1) freq = 1;
+    if (!Number.isFinite(freq)) freq = 440;
+
+    osc = audioCtx.createOscillator();
+    gain = audioCtx.createGain();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+
+    currentOscType = type;
+
+    // custom waveform option: create a rich harmonic wave via PeriodicWave
+    if (type === 'custom') {
+      // create harmonics: base + 2nd + 3rd etc (saw-like but controllable)
+      const real = new Float32Array([0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+      const imag = new Float32Array(real.length);
+      // fill with simple harmonic pattern
+      for (let i = 1; i < imag.length; i++) {
+        imag[i] = 1 / i; // decreasing amplitude harmonics
+      }
+      const pw = audioCtx.createPeriodicWave(real, imag, {disableNormalization:false});
+      osc.setPeriodicWave(pw);
+    } else {
+      osc.type = type;
+    }
+
+    // set frequency — WebAudio will accept large numbers, but audible/hardware limits apply
+    try {
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    } catch (e) {
+      // fallback
+      osc.frequency.value = freq;
+    }
+
+    gain.gain.value = vol;
+    osc.connect(gain);
+    gain.connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    // continuous or timed
+    osc.start();
+
+    if (sweep && typeof sweep === 'object') {
+      // sweep: {start, end, duration}
+      const now = audioCtx.currentTime;
+      try {
+        osc.frequency.setValueAtTime(sweep.start, now);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(sweep.end, 0.0001), now + sweep.duration);
+      } catch (e) {
+        // if exponential fails (start or end <=0), use linear
+        osc.frequency.linearRampToValueAtTime(sweep.end, audioCtx.currentTime + sweep.duration);
+      }
+      // stop when done (unless loop)
+      if (!loop) {
+        setTimeout(stopTone, sweep.duration * 1000 + 50);
+      }
+    } else if (!loop && duration) {
+      setTimeout(stopTone, duration * 1000 + 50);
+    }
+
+    playing = true;
+    visualize();
+  }
+
+  function stopTone() {
+    if (osc) {
+      try { osc.stop(0); } catch(e){}
+      try { osc.disconnect(); } catch(e){}
+      osc = null;
+    }
+    if (gain) {
+      try { gain.disconnect(); } catch(e){}
+      gain = null;
+    }
+    if (analyser) {
+      try { analyser.disconnect(); } catch(e){}
+      analyser = null;
+    }
+    playing = false;
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+    clearCanvas();
+  }
+
+  function clearCanvas() {
+    wctx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
+    fctx.clearRect(0,0,freqCanvas.width,freqCanvas.height);
+  }
+
+  function visualize() {
+    if (!analyser) return;
+    const bufferLength = analyser.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+    const freqArray = new Uint8Array(analyser.frequencyBinCount);
+
+    function draw() {
+      animationId = requestAnimationFrame(draw);
+      analyser.getByteTimeDomainData(dataArray);
+      analyser.getByteFrequencyData(freqArray);
+
+      // waveform
+      wctx.fillStyle = 'rgba(0,0,0,0.05)';
+      wctx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
+      wctx.lineWidth = 2;
+      wctx.beginPath();
+      const sliceWidth = waveCanvas.width / bufferLength;
+      let x = 0;
+      for (let i=0;i<bufferLength;i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * (waveCanvas.height/2);
+        if (i === 0) wctx.moveTo(x,y);
+        else wctx.lineTo(x,y);
+        x += sliceWidth;
+      }
+      wctx.strokeStyle = 'rgba(130,200,255,0.95)';
+      wctx.stroke();
+
+      // frequency
+      fctx.fillStyle = 'rgba(0,0,0,0.06)';
+      fctx.fillRect(0,0,freqCanvas.width,freqCanvas.height);
+      const barWidth = (freqCanvas.width / freqArray.length) * 2.5;
+      let bx = 0;
+      for (let i=0;i<freqArray.length;i++) {
+        const v = freqArray[i];
+        const h = v / 255 * freqCanvas.height;
+        fctx.fillStyle = 'rgba(255,255,255,0.06)';
+        fctx.fillRect(bx, freqCanvas.height - h, barWidth, h);
+        bx += barWidth + 1;
+      }
+      // draw a marker at fundamental frequency if possible
+      if (audioCtx && freqInput.value) {
+        const fundamental = Number(freqInput.value);
+        const nyquist = audioCtx.sampleRate / 2;
+        if (fundamental > 0 && nyquist > 0) {
+          const idx = Math.round((fundamental / nyquist) * (freqArray.length-1));
+          const fx = (idx / freqArray.length) * freqCanvas.width;
+          fctx.fillStyle = 'rgba(255,200,100,0.9)';
+          fctx.fillRect(fx-1, 0, 2, freqCanvas.height);
+        }
+      }
+    }
+    draw();
+  }
+
+  // UI events
+  playBtn.addEventListener('click', async () => {
+    ensureAudioContext();
+    const freq = Number(freqInput.value) || 440;
+    const vol = Number(volume.value) || 0.5;
+    const dur = Number(durationInput.value) || 3;
+    const loop = loopCheck.checked;
+    const type = waveSelect.value;
+    // If freq extremely large, still pass through but warn in console
+    if (freq > audioCtx.sampleRate / 2) {
+      console.warn('Requested frequency exceeds Nyquist (aliasing will occur). Requested:', freq, 'SampleRate/2:', audioCtx.sampleRate/2);
+    }
+    startTone({freq, type, vol, loop, duration: dur});
+  });
+
+  stopBtn.addEventListener('click', () => {
+    stopTone();
+  });
+
+  sweepBtn.addEventListener('click', () => {
+    ensureAudioContext();
+    const start = Number(sweepStart.value) || 440;
+    const end = Number(sweepEnd.value) || 1000;
+    const dur = Number(durationInput.value) || 3;
+    const vol = Number(volume.value) || 0.5;
+    const type = waveSelect.value;
+    if (start <= 0 || end <= 0) {
+      alert('Sweep frequencies must be > 0');
+      return;
+    }
+    startTone({freq: start, type, vol, loop: false, sweep:{start, end, duration: dur}});
+  });
+
+  // WAV generation: create offline buffer and encode to WAV
+  function createWavBlob({freq, wave='sine', duration=3, sampleRate=44100, volume=0.5, sweep=null} = {}) {
+    // We'll create samples procedurally
+    const sr = sampleRate;
+    const len = Math.floor(duration * sr);
+    const channels = 1;
+    const buffer = new Float32Array(len);
+
+    function waveformSample(t, type, f) {
+      const phase = 2 * Math.PI * f * t;
+      switch(type) {
+        case 'sine': return Math.sin(phase);
+        case 'square': return Math.sign(Math.sin(phase));
+        case 'sawtooth': return 2 * ( (f * t) - Math.floor(0.5 + f * t) );
+        case 'triangle': return (2 / Math.PI) * Math.asin(Math.sin(phase));
+        case 'custom':
+          // simple harmonic series synthesis — add first few harmonics
+          let s = 0;
+          const harmonics = 6;
+          for (let h=1; h<=harmonics; h++) {
+            s += (1/h) * Math.sin(2*Math.PI*(f*h)*t);
+          }
+          return s * (2/Math.PI); // normalize-ish
+        default:
+          return Math.sin(phase);
+      }
+    }
+
+    for (let i=0;i<len;i++) {
+      const t = i / sr;
+      let fNow = freq;
+      if (sweep) {
+        // linear sweep
+        const frac = t / duration;
+        fNow = sweep.start + (sweep.end - sweep.start) * frac;
+      }
+      buffer[i] = waveformSample(t, wave, fNow) * volume;
+    }
+
+    // WAV encode (16-bit PCM)
+    const wavBuffer = encodeWAV(buffer, sr, channels);
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+
+    function encodeWAV(samplesFloat, sampleRate, numChannels) {
+      // convert Float32 -> Int16
+      const bytesPerSample = 2;
+      const blockAlign = numChannels * bytesPerSample;
+      const byteRate = sampleRate * blockAlign;
+      const dataSize = samplesFloat.length * bytesPerSample;
+      const buffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(buffer);
+
+      /* RIFF identifier */
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true); // PCM chunk size
+      view.setUint16(20, 1, true); // PCM format
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bytesPerSample * 8, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, dataSize, true);
+
+      // write PCM samples
+      let offset = 44;
+      for (let i = 0; i < samplesFloat.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samplesFloat[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      return view;
+    }
+
+    function writeString(view, offset, str) {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    }
+  }
+
+  downloadBtn.addEventListener('click', async () => {
+    const freq = Number(freqInput.value) || 440;
+    const wave = waveSelect.value;
+    const dur = Number(durationInput.value) || 3;
+    const vol = Number(volume.value) || 0.5;
+    const sweep = (Number(sweepStart.value) && Number(sweepEnd.value) && Number(sweepStart.value) !== Number(sweepEnd.value))
+      ? {start: Number(sweepStart.value), end: Number(sweepEnd.value)} : null;
+
+    // Warn about sample-rate limits and big frequencies
+    ensureAudioContext();
+    if (freq > audioCtx.sampleRate/2 || (sweep && (sweep.start > audioCtx.sampleRate/2 || sweep.end > audioCtx.sampleRate/2))) {
+      if (!confirm('Some requested frequencies exceed the audio device/sample-rate Nyquist frequency and will alias in the generated WAV. Continue?')) {
+        return;
+      }
+    }
+
+    // create WAV blob
+    const blob = createWavBlob({freq, wave, duration: dur, sampleRate: audioCtx.sampleRate || 44100, volume: vol, sweep});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const ts = new Date().toISOString().replace(/[:\.]/g,'-');
+    a.download = `ultrafreq-${freq}Hz-${ts}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  // update labels on load
+  ensureAudioContext();
+  if (!audioCtx) {
+    srLabel.textContent = '—';
+    nyquistLabel.textContent = '—';
+  }
+
+  // cleanup on page hide
+  window.addEventListener('pagehide', () => {
+    try { stopTone(); } catch(e) {}
+    try { if (audioCtx && audioCtx.close) audioCtx.close(); } catch(e){}
+  });
+</script>
+</body>
+</html>
